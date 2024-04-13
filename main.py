@@ -15,8 +15,66 @@ report = "*********************************************" \
          "Cases yourself. Tests SQL, XSS, Wordpress and " \
          "more. \n"  # global final response given
 
+class guiAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, **kwargs) # allow for positional url or gui
+
+    def __call__(self, parser, namespace, values, option_string, **kwargs):
+        win = tk.Tk()
+
+        win.title("General Vulnerability Scanner")
+        win.geometry('325x250')
+        win.configure(background="gray")
+
+
+        urlBox = Entry(win).grid(row=0, column=1)
+        wordlistBox = Entry(win).grid(row=0, column=2)
+
+        doDirect = tk.BooleanVar()
+        doAll = tk.BooleanVar()
+        doSQL = tk.BooleanVar()
+        doXSS = tk.BooleanVar()
+
+        tk.Checkbutton(win, text='Directory Enumeration', variable=doDirect, onvalue=True, offvalue=False,).grid(row=1, column=0)
+        tk.Checkbutton(win, text='Every Feature', variable=doAll, onvalue=True, offvalue=False, ).grid(row=1, column=1)
+        tk.Checkbutton(win, text='SQL Injection', variable=doSQL, onvalue=True, offvalue=False, ).grid(row=1, column=2)
+        tk.Checkbutton(win, text='XSS', variable=doXSS, onvalue=True, offvalue=False, ).grid(row=1, column=3)
+
+        submit = tk.Button(win, text="Submit", command=lambda: self.onSubmit(self, urlBox, wordlistBox, doDirect, doAll, doSQL, doXSS)).grid(row=4, column=0)
+
+
+        win.mainloop()
+
+        parser.exit()
+
+    def onSubmit(self, urlBox, wordlistBox, doDirect, doAll, doSQL, doXSS): # Run everything selected, when submitted
+        url = urlBox.get()
+
+        DirectoryEnum = ""
+        if doDirect or doAll:
+            DirectoryEnum = False
+
+            wordlist = wordlistBox.get()
+
+
+        if DirectoryEnum:
+            if os.path.isfile(wordlist):
+
+                correctURLs = directoryBust(url, wordlist)
+            else:
+                print("Please select a wordlist, or deselect directory enumeration")
+
+        for url in correctURLs:
+            if doSQL or doAll:
+                test_sql()
+
+            if doXSS or doAll:
+                test_xss()
+
 
 def main():
+
+
     # collect all the args
 
     parser = argparse.ArgumentParser(
@@ -31,8 +89,11 @@ def main():
     parser.add_argument('-x', '--xss', action='store_true')
     parser.add_argument('-a', '--all', action='store_true')
     parser.add_argument('-w', '--wordlist')
+    parser.add_argument('-g', '--gui', action=guiAction)
 
     args = parser.parse_args()
+
+# Run everything selected
 
     DirectoryEnum = ""
     if args.direct or args.all:
@@ -41,6 +102,7 @@ def main():
         wordlist = args.wordlist
 
     url = args.url
+    correctURLs = [url] # array with just url, needed if directory enumeration is not selected
 
     if DirectoryEnum:
         if os.path.isfile(wordlist):
@@ -49,12 +111,14 @@ def main():
         else:
             print("Please select a wordlist, or deselect directory enumeration")
 
-    if args.sql or args.all:
-        test_sql()
+    for url in correctURLs:
+        if args.sql or args.all:
+            test_sql()
 
+        if args.xss or args.all:
+            test_xss()
 
-    if args.xss or args.all:
-        test_xss()
+    #contactUser(report)
 
 
 def test_sql(url):
@@ -114,11 +178,7 @@ def contactUser(content):
     response = webhook.execute()
 
 
-def gui():
-    # creates simple gui
-    win = tk.Tk()
 
-    Label(win, text="site URL").grid(row=0)
 
 
 def wordpressEnum(url):
@@ -159,6 +219,11 @@ def directoryBust(url, wordlist):
 
 def test_xss():
     pass
+
+
+
+main()
+
 
 # Bust domains
 # nmap thing to get flags?
