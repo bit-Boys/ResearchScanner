@@ -1,3 +1,6 @@
+# NOTE: This is part of an internship project. This software has a wide degree of funcitonality, please use responsibly, and always with permissions from sites that are tested against.
+
+
 import argparse
 import requests
 from bs4 import BeautifulSoup
@@ -23,24 +26,31 @@ class guiAction(argparse.Action):
         win = tk.Tk()
 
         win.title("General Vulnerability Scanner")
-        win.geometry('325x250')
-        win.configure(background="gray")
+        win.geometry('400x400')
+        win.configure(background="blue")
 
 
-        urlBox = Entry(win).grid(row=0, column=1)
-        wordlistBox = Entry(win).grid(row=0, column=2)
+        urlLabel = Label(win, text="Enter URL: ").grid(row=0, column=0, pady=4, padx=1)
+        urlBox = Entry(win)
+        urlBox.grid(row=0, column=1, pady=4, padx=1)
+
+        wordlistLabel = Label(win, text="Path to wordlist here: ").grid(row=1, column=1, pady=4, padx=1)
+        wordlistBox = Entry(win)
+        wordlistBox.grid(row=1, column=2, pady=4, padx=1)
 
         doDirect = tk.BooleanVar()
         doAll = tk.BooleanVar()
         doSQL = tk.BooleanVar()
         doXSS = tk.BooleanVar()
+        doWordpress = tk.BooleanVar()
 
-        tk.Checkbutton(win, text='Directory Enumeration', variable=doDirect, onvalue=True, offvalue=False,).grid(row=1, column=0)
-        tk.Checkbutton(win, text='Every Feature', variable=doAll, onvalue=True, offvalue=False, ).grid(row=1, column=1)
-        tk.Checkbutton(win, text='SQL Injection', variable=doSQL, onvalue=True, offvalue=False, ).grid(row=1, column=2)
-        tk.Checkbutton(win, text='XSS', variable=doXSS, onvalue=True, offvalue=False, ).grid(row=1, column=3)
+        tk.Checkbutton(win, text='Directory Enumeration', variable=doDirect, onvalue=True, offvalue=False,).grid(row=1, column=0, pady=4, padx=1)
+        tk.Checkbutton(win, text='Every Feature', variable=doAll, onvalue=True, offvalue=False, ).grid(row=2, column=0, pady=4, padx=1)
+        tk.Checkbutton(win, text='SQL Injection', variable=doSQL, onvalue=True, offvalue=False, ).grid(row=2, column=1, pady=4, padx=1)
+        tk.Checkbutton(win, text='XSS', variable=doXSS, onvalue=True, offvalue=False, ).grid(row=2, column=2, pady=4, padx=1)
+        tk.Checkbutton(win, text='Wordpress', variable=doWordpress, onvalue=True, offvalue=False, ).grid(row=3, column=0, pady=4, padx=1)
 
-        submit = tk.Button(win, text="Submit", command=lambda: self.onSubmit(self, urlBox, wordlistBox, doDirect, doAll, doSQL, doXSS)).grid(row=4, column=0)
+        submit = tk.Button(win, text="Submit", command=lambda: self.onSubmit(urlBox, wordlistBox, doDirect, doAll, doSQL, doXSS)).grid(row=4, column=1, pady=3)
 
 
         win.mainloop()
@@ -48,13 +58,19 @@ class guiAction(argparse.Action):
         parser.exit()
 
     def onSubmit(self, urlBox, wordlistBox, doDirect, doAll, doSQL, doXSS): # Run everything selected, when submitted
+
+
         url = urlBox.get()
+        correctURLs = [url]
+
 
         DirectoryEnum = ""
-        if doDirect or doAll:
-            DirectoryEnum = False
+
+        if doDirect.get() or doAll.get():
+            DirectoryEnum = True
 
             wordlist = wordlistBox.get()
+
 
 
         if DirectoryEnum:
@@ -65,15 +81,14 @@ class guiAction(argparse.Action):
                 print("Please select a wordlist, or deselect directory enumeration")
 
         for url in correctURLs:
-            if doSQL or doAll:
-                test_sql()
+            if doSQL.get() or doAll.get():
+                test_sql(url)
 
-            if doXSS or doAll:
-                test_xss()
+            if doXSS.get() or doAll.get():
+                test_xss(url)
 
 
 def main():
-
 
     # collect all the args
 
@@ -88,6 +103,7 @@ def main():
     parser.add_argument('-q', '--sql', action='store_true')
     parser.add_argument('-x', '--xss', action='store_true')
     parser.add_argument('-a', '--all', action='store_true')
+    parser.add_argument('-p', '--wordpress', action='store_true')
     parser.add_argument('-w', '--wordlist')
     parser.add_argument('-g', '--gui', action=guiAction)
 
@@ -113,10 +129,14 @@ def main():
 
     for url in correctURLs:
         if args.sql or args.all:
-            test_sql()
+            test_sql(url)
 
         if args.xss or args.all:
-            test_xss()
+            test_xss(url)
+
+        if args.wordpress or args.all:
+            wordpressEnum(url)
+
 
     #contactUser(report)
 
@@ -192,6 +212,12 @@ def wordpressEnum(url):
 
         report = report + "Generator tag open. Found vulnerabilities as follows: " + wpSys
 
+    # to implament:
+    # run custom wordlist for wp
+    # query and get info if it exists /wp-json/wp/v2/users
+    # /wp-json/wp/v2/pages
+    #
+
 
 def directoryBust(url, wordlist):
     # havnt yet impemented incursive search
@@ -217,8 +243,8 @@ def directoryBust(url, wordlist):
             time.sleep(1400)  # What is minimum acceptable, may need just a short wordlist
     return correct
 
-def test_xss():
-    pass
+def test_xss(url):
+    print("placehold" + url)
 
 
 
