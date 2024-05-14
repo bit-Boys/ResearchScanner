@@ -10,6 +10,13 @@ import time
 import discord_webhook
 from discord_webhook import DiscordWebhook
 import os
+import nmap3
+import socket
+from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+import threading
 
 report = "*********************************************" \
          "*********************************************" \
@@ -89,6 +96,11 @@ class guiAction(argparse.Action):
 
 
 def main():
+    global report
+
+    session = requests.Session()
+    session.headers[
+        'User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 Safari/537.36'
 
     # collect all the args
 
@@ -111,9 +123,9 @@ def main():
 
 # Run everything selected
 
-    DirectoryEnum = ""
+    DirectoryEnum = False
     if args.direct or args.all:
-        DirectoryEnum = False
+        DirectoryEnum = True
 
         wordlist = args.wordlist
 
@@ -137,8 +149,12 @@ def main():
         if args.wordpress or args.all:
             wordpressEnum(url)
 
+        if args.all:
+            nmap(url)
+
 
     #contactUser(report)
+    print(report)
 
 
 def test_sql(url):
@@ -166,13 +182,13 @@ def test_sql(url):
     for form in forms:
         # First, take two known incorrect injections.txt
         wrongOne = requests.post(url, {form.name: "wrongpass"})
-        time.sleep(500)
+        time.sleep(0.5)
         wrongTwo = requests.post(url, {form.name: "anotherwrongpass"})
 
         if wrongOne == wrongTwo:  # if these equal, it stands to reason all incorrect responses are
             technique = 1
         else:
-            technique = 2  # assume that a technique worked if it takes more than the length between the tests longer
+            technique = 2  # assume that a technique worked if it takes more than the length between the tests to respond
             # may result in false positives or negatives
 
             greater = max(wrongOne.elapsed.total_seconds(), wrongTwo.elapsed.total_seconds())
@@ -182,22 +198,32 @@ def test_sql(url):
 
             for injection in injections:
                 attempt = requests.post(url, {form.name: injection})
+                time.sleep(0.3)
                 if attempt.text != wrongOne.text:
-                    report = report + "Sql Injection using:  " + injection
+                    report = report + "Sql Injection suspected using:  " + injection + "\n"
 
         if technique == 2:
             for injection in injections:
                 attempt = requests.post(url, {form.name: injection})
+                time.sleep(0.3)
 
                 if attempt.elapsed.total_seconds() > greater + (2 * between):
-                    report = report + "Sql Injection Suspected using:  " + injection
+                    report = report + "Sql Injection Suspected using:  " + injection + "\n"
+
+def nmap(url): # Nmaps site to get flags and dns scan
+    global report
+    nmap = nmap3.Nmap()
+
+    baseURL = baseURl(url)
+
+    results = nmap.nmap_dns_brute_script(baseURL)
+
+    report = report + results
 
 
 def contactUser(content):
     webhook = DiscordWebhook(url="urltoserverwebhook", content=content)
     response = webhook.execute()
-
-
 
 
 
@@ -212,17 +238,81 @@ def wordpressEnum(url):
 
         report = report + "Generator tag open. Found vulnerabilities as follows: " + wpSys
 
-    # to implament:
-    # run custom wordlist for wp
-    # query and get info if it exists /wp-json/wp/v2/users
-    # /wp-json/wp/v2/pages
-    #
+    # Known wordpress extensions
+    baseURL = baseURl(url)
+    users = requests.get(baseURL + "wp-json/wp/v2/users")
+    pages = requests.get(baseURL + "wp-json/wp/v2/pages")
+
+    if users.status_code == 200:
+        report = report + "\n Users page open, exposing: '" + users.text + "' to the public"
+    if pages.status_code == 200:
+        report = report + "\n Users page open, exposing: '" + pages.text + "' to the public"
 
 
 def directoryBust(url, wordlist):
-    # havnt yet impemented incursive search
-    # also threading for speed
 
+    # threading for speed
+
+    baseURL = baseURl(url) # get base url
+
+    correct = []
+
+    with open(wordlist) as wl:
+        for line in wl:
+            r = requests.get(f'{baseURL}/{line}')
+
+            if r.status_code == 200:
+                correct.append(f'{baseURL}/{line}')
+
+            time.sleep(0.2)  # What is minimum acceptable, may need just a short wordlist
+    return correct
+
+def test_xss(url):
+
+    global report
+    if url[:6] != "https://":
+        url = f'https://{url}'
+
+    # probably some easier way to check for correct execution and this is less efficient, but I wanted some practice with Selenium
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+
+    os.environ['PATH'] += r'C:/Users/benja/Desktop/Selenium Drivers/chromedriver_win32'
+    driver = webdriver.Chrome(options=options)
+
+
+    driver.get(url)
+    inputs = find_elements(By.XPATH, "//input")
+
+    for input in inputs:
+        for inject in injections:
+            try:
+
+                input.send_keys(inject)
+                WebDriverWait wait = new WebDriverWait(driver,2)
+                wait.until(ExpectedConditions.alertIsPresent())
+                Alert correct = driver.switchTo()alert()
+
+                report += "Seems injection was allowed with this XXS injection: " + inject +"\n This occured in: " + input.name
+
+                correct.accept()
+
+
+            except(Exception e):
+                pass
+
+
+
+    driver.quit()
+
+
+
+
+
+
+
+
+def baseURl(url): # quick utility function to get base url http://example.com/directory/sub/ -> https://example.com
     i = 0
     for char in url:  # probably some tricky way to do with string manipulation
         if char == "/":
@@ -231,27 +321,9 @@ def directoryBust(url, wordlist):
             i = i + 1  # code editor hates i++
 
     baseURL = url[:i]
-
-    correct = []
-
-    with open(wordlist) as wl:
-        for line in wl:
-            r = requests.get(f'{baseURL}/{line}')
-            if r.status_code == 200:
-                correct.append(f'{baseURL}/{line}')
-
-            time.sleep(1400)  # What is minimum acceptable, may need just a short wordlist
-    return correct
-
-def test_xss(url):
-    print("placehold" + url)
-
+    return baseURL
 
 
 main()
 
 
-# Bust domains
-# nmap thing to get flags?
-# docs
-# miters cvs
