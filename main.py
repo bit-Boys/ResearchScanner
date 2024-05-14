@@ -218,7 +218,7 @@ def nmap(url): # Nmaps site to get flags and dns scan
 
     results = nmap.nmap_dns_brute_script(baseURL)
 
-    report = report + results
+    report = report + "Result of dns brute forcing" + results
 
 
 def contactUser(content):
@@ -282,23 +282,27 @@ def test_xss(url):
 
 
     driver.get(url)
-    inputs = find_elements(By.XPATH, "//input")
+    inputs = driver.find_elements(By.XPATH, "//input")
+
+    injections = []
+    with open('xss.txt') as my_file:
+        for line in my_file:
+            injections.append(line)
 
     for input in inputs:
         for inject in injections:
             try:
 
                 input.send_keys(inject)
-                WebDriverWait wait = new WebDriverWait(driver,2)
-                wait.until(ExpectedConditions.alertIsPresent())
-                Alert correct = driver.switchTo()alert()
+                wait = WebDriverWait(driver, 3).until(EC.alert_is_present()) # waits 3 sec for alert
+
 
                 report += "Seems injection was allowed with this XXS injection: " + inject +"\n This occured in: " + input.name
 
-                correct.accept()
 
 
-            except(Exception e):
+
+            except(): # nothing happened
                 pass
 
 
